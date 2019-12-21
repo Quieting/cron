@@ -9,7 +9,7 @@ import (
 
 // 测试任务管理是否准确执行
 func Test_Process(t *testing.T) {
-	c := New(nil)
+	c := New()
 	go c.Run()
 
 	now := time.Now()

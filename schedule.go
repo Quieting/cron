@@ -33,10 +33,10 @@ type TimeSchedule struct {
 	// 起始年
 	sYear int
 
-	// time[0]-time[6]依次表示:秒、分、小时、日期、月份、星期、年
+	// 秒、分、小时、日期、月份、星期、年
 	second, min, hour, day, month, weekDay, year uint64
 
-	// loc time.Location
+	loc *time.Location
 }
 
 // Max 调度器最后一次执行时间
@@ -128,6 +128,12 @@ func findBitBack(n, start, end uint64) uint64 {
 
 // Next 符合 TimeSchedule 的下个时间
 func (t *TimeSchedule) Next(_time time.Time) time.Time {
+	// 原始时区
+	oriLoc := _time.Location()
+
+	// 统一时区
+	_time = _time.In(t.loc)
+
 	year, month, day := _time.Date()
 	hour, min, sec := _time.Clock()
 
@@ -173,13 +179,13 @@ func (t *TimeSchedule) Next(_time time.Time) time.Time {
 					hour = 0
 					min = 0
 					sec = 0
-					return time.Date(year, month, 1, 0, 0, 0, 0, _time.Location()), false
+					return time.Date(year, month, 1, 0, 0, 0, 0, _t.Location()), false
 				}
 				continue
 			}
 
 			// 验证新生成的时间是否跨月、跨年, 检测星期是否符合
-			_t := time.Date(year, month, int(d), 0, 0, 0, 0, _time.Location())
+			_t := time.Date(year, month, int(d), 0, 0, 0, 0, _t.Location())
 			_year, _month, _day := _t.Date()
 			if _year != year || _month != month || _day != int(d) || (1<<uint64(_t.Weekday()))&t.weekDay == 0 {
 				continue
@@ -202,7 +208,7 @@ func (t *TimeSchedule) Next(_time time.Time) time.Time {
 			hour = 0
 			min = 0
 			sec = 0
-			return time.Date(year, month, day, 0, 0, 0, 0, _time.Location()), false
+			return time.Date(year, month, day, 0, 0, 0, 0, _t.Location()), false
 		}
 
 		if h != uint64(hour) {
@@ -218,7 +224,7 @@ func (t *TimeSchedule) Next(_time time.Time) time.Time {
 			hour++
 			min = 0
 			sec = 0
-			return time.Date(year, month, day, hour, 0, 0, 0, _time.Location()), false
+			return time.Date(year, month, day, hour, 0, 0, 0, _t.Location()), false
 		}
 
 		if mm != uint64(min) {
@@ -232,18 +238,18 @@ func (t *TimeSchedule) Next(_time time.Time) time.Time {
 		if s > 59 {
 			min++
 			sec = 0
-			return time.Date(year, month, day, hour, min, 0, 0, _time.Location()), false
+			return time.Date(year, month, day, hour, min, 0, 0, _t.Location()), false
 		}
 		sec = int(s)
 
-		return time.Date(year, month, day, hour, min, sec, 0, _time.Location()), true
+		return time.Date(year, month, day, hour, min, sec, 0, _t.Location()), true
 	}
 
 	for {
 		var b bool
 		_time, b = look(_time)
 		if b {
-			return _time
+			return _time.In(oriLoc)
 		}
 		if _time.IsZero() {
 			return _time
@@ -306,7 +312,7 @@ func Time2TimeSchedule(_time time.Time) *TimeSchedule {
 //  0 5,15 5 * * * *　　                   5:5, 05:15 执行
 //  0 0-10 17 * * * *                     17:00 到 17:10 毎隔 1 分钟 执行
 //  0 2 8-20/3 * * * *　　　　　　          8:02,11:02,14:02,17:02,20:02 执行
-func Parse(spec string) (ts *TimeSchedule, err error) {
+func Parse(spec string) (s Scheduler, err error) {
 	// 1.按空格分割字符串获取时间参数
 	params := strings.Fields(spec)
 
@@ -315,7 +321,7 @@ func Parse(spec string) (ts *TimeSchedule, err error) {
 		params = append(params, "*")
 	}
 
-	ts = new(TimeSchedule)
+	ts := new(TimeSchedule)
 	ts.sYear = time.Now().Year()
 
 	f := func(str string) (_time uint64, err error) {
@@ -371,6 +377,7 @@ func Parse(spec string) (ts *TimeSchedule, err error) {
 	// 3.修正不合法数据
 	ts.amend()
 
+	s = ts
 	return
 }
 

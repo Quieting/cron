@@ -7,32 +7,43 @@ import (
 )
 
 func Test_Parse(t *testing.T) {
-	type paramParse struct {
+	year := time.Now().Year()
+	data := []struct {
 		name string
-		expr string
-		want *TimeSchedule
-	}
 
-	data := []paramParse{
-		{"五个参数", "0-31/4,32-40/2 20 15 * *", &TimeSchedule{2019, 0x15511111111, 0x100000, 0x8000, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64}},
-		{"六个参数", "0-31/4,32-40/2 20 15 * ", &TimeSchedule{2019, 0x15511111111, 0x100000, 0x8000, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64}},
-		{"不合格的参数", "0-31/4,32-40/2 20 15 100 ", &TimeSchedule{2019, 0x15511111111, 0x100000, 0x8000, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64}},
-		{"测试当前月份", "0 20 5 * * *", &TimeSchedule{2019, 0x1, 0x100000, 0x20, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64}},
+		d []struct {
+			expr string
+			want *TimeSchedule
+		}
+	}{
+		// '*' 测试
+		{
+			"'*' 测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				{"* 4 15 1 02 * ", &TimeSchedule{year, 0xFFFFFFFFFFFFFFF, 0x10, 0x8000, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
+				{"5 * 15 1 02 * ", &TimeSchedule{year, 0x20, 0xFFFFFFFFFFFFFFF, 0x8000, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 * 1 02 * ", &TimeSchedule{year, 0x20, 0x10, 0xFFFFFF, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
+			},
+		},
 	}
-
-	t.Logf("(0x1FFE & (1 << 12)) : %d", (0x1FFE & (1 << 12)))
 
 	for _, p := range data {
 		t.Run(p.name, func(t *testing.T) {
-			ts, err := Parse(p.expr)
-			if err != nil {
-				t.Error(err)
+			for _, val := range p.d {
+				ts, err := Parse(val.expr)
+				if err != nil {
+					t.Error(err)
+				}
+
+				if ts.second != val.want.second || ts.min != val.want.min || ts.hour != val.want.hour ||
+					ts.day != val.want.day || ts.month != val.want.month || ts.year != val.want.year || ts.sYear != val.want.sYear {
+					t.Errorf("get: %+v, want: %+v", ts, val.want)
+				}
 			}
 
-			if ts.second != p.want.second || ts.min != p.want.min || ts.hour != p.want.hour ||
-				ts.day != p.want.day || ts.month != p.want.month || ts.year != p.want.year || ts.sYear != p.want.sYear {
-				t.Errorf("get: %+v, want: %+v", ts, p.want)
-			}
 		})
 	}
 }
@@ -89,8 +100,8 @@ func Test_Time2TimeSchedule(t *testing.T) {
 	}
 
 	data := []paramTime2TS{
-		{"测试空时间", time.Time{}, TimeSchedule{1, 1, 1, 1, 2, 2, 2, 0}},
-		{"测试空的月份", time.Date(2019, 5, 20, 0, 0, 0, 0, time.Local), TimeSchedule{2019, 1, 1, 1, 1 << 20, 1 << 5, 1 << 1, 0}},
+		{"测试空时间", time.Time{}, TimeSchedule{1, 1, 1, 1, 2, 2, 2, 0, time.Local}},
+		{"测试空的月份", time.Date(2019, 5, 20, 0, 0, 0, 0, time.Local), TimeSchedule{2019, 1, 1, 1, 1 << 20, 1 << 5, 1 << 1, 0, time.Local}},
 	}
 
 	for _, p := range data {
