@@ -3,6 +3,7 @@ package corn
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/snowflake"
@@ -34,17 +35,18 @@ type Corn struct {
 	jobs []Jober // 待运行的任务
 
 	node *snowflake.Node // 用于生成任务唯一标识
-	log  Logger
 
 	a chan Jober    // 添加任务
 	d chan string   // 删除任务
 	s chan struct{} // 停止任务管理
+
+	mux sync.Mutex // 保护以下变量
+	log Logger
 }
 
 // New 初始化 Corn 对象
-func New(log Logger) *Corn {
+func New() *Corn {
 	corn := new(Corn)
-	corn.log = log
 	corn.a = make(chan Jober)
 	corn.d = make(chan string)
 	corn.s = make(chan struct{})
@@ -52,10 +54,14 @@ func New(log Logger) *Corn {
 	// 2019-11-11 0:00:00
 	snowflake.Epoch = 1573401600456
 	corn.node, _ = snowflake.NewNode(1)
-	if log == nil {
-
-	}
 	return corn
+}
+
+// SetLog 设置日志
+func (c *Corn) SetLog(log Logger) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	c.log = log
 }
 
 // RunFunc 任务执行体
@@ -157,12 +163,12 @@ func (c *Corn) Run() {
 
 type job struct {
 	f        RunFunc
-	ts       *TimeSchedule // 重复任务专用
-	name     string        // 任务名字
-	next     time.Time     // 下一次执行时间
-	status   string        // 1.执行失败 2.执行中
-	times    int           // 执行次数
-	errInfos []errInfo     // 执行失败的错误信息
+	ts       Scheduler // 重复任务专用
+	name     string    // 任务名字
+	next     time.Time // 下一次执行时间
+	status   string    // 1.执行失败 2.执行中
+	times    int       // 执行次数
+	errInfos []errInfo // 执行失败的错误信息
 	log      Logger
 	s        Scheduler
 }
