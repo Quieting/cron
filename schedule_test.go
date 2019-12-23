@@ -1,10 +1,17 @@
 package corn
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
 )
+
+// String 格式化输出
+func (t *TimeSchedule) String() string {
+	return fmt.Sprintf("{sYear: %d, second: %x, min: %x, hour: %x, day: %x, month: %x, weekDay: %x, year: %x}",
+		t.sYear, t.second, t.min, t.hour, t.day, t.month, t.weekDay, t.year)
+}
 
 func Test_Parse(t *testing.T) {
 	year := time.Now().Year()
@@ -23,9 +30,88 @@ func Test_Parse(t *testing.T) {
 				expr string
 				want *TimeSchedule
 			}{
-				{"* 4 15 1 02 * ", &TimeSchedule{year, 0xFFFFFFFFFFFFFFF, 0x10, 0x8000, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
-				{"5 * 15 1 02 * ", &TimeSchedule{year, 0x20, 0xFFFFFFFFFFFFFFF, 0x8000, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
-				{"5 4 * 1 02 * ", &TimeSchedule{year, 0x20, 0x10, 0xFFFFFF, 0x2, 0x4, 0x7F, math.MaxUint64, time.Local}},
+				{"* 4 15 2 1 * ", &TimeSchedule{year, 0xFFFFFFFFFFFFFFF, 0x10, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 * 15 2 1 * ", &TimeSchedule{year, 0x20, 0xFFFFFFFFFFFFFFF, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 * 2 1 * ", &TimeSchedule{year, 0x20, 0x10, 0xFFFFFF, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 * 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0xFFFFFFFE, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 * * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+			},
+		},
+
+		// ',' 测试
+		{
+			"',' 测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				{"5,6 4 15 2 1 * ", &TimeSchedule{year, 0x60, 0x10, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4,5,24 15 2 1 * ", &TimeSchedule{year, 0x20, 0x1000030, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15,22 2 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x408000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2,12 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x1004, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 1,5 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x22, 0x7F, math.MaxUint64, time.Local}},
+			},
+		},
+
+		// '-' 测试
+		{
+			"'-' 测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				{"0-59 4 15 2 1 * ", &TimeSchedule{year, 0xFFFFFFFFFFFFFFF, 0x10, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 0-59 15 2 1 * ", &TimeSchedule{year, 0x20, 0xFFFFFFFFFFFFFFF, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 0-23 2 1 * ", &TimeSchedule{year, 0x20, 0x10, 0xFFFFFF, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 1-31 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0xFFFFFFFE, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 1-12 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 1 0-6 ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+			},
+		},
+
+		// '/' 测试
+		{
+			"'/' 测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				{"*/4 4 15 2 1 * ", &TimeSchedule{year, 0x111111111111111, 0x10, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 */4 15 2 1 * ", &TimeSchedule{year, 0x20, 0x111111111111111, 0x8000, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 */4 2 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x111111, 0x4, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 */4 1 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x11111110, 0x2, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 */4 * ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x1110, 0x7F, math.MaxUint64, time.Local}},
+				{"5 4 15 2 1 */3 ", &TimeSchedule{year, 0x20, 0x10, 0x8000, 0x4, 0x2, 0x49, math.MaxUint64, time.Local}},
+			},
+		},
+
+		// 复杂字符串
+		{
+			"'*'、','、'-'、'/'组合测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				{"0-12/4 * * * * * ", &TimeSchedule{year, 0x1111, 0xFFFFFFFFFFFFFFF, 0xFFFFFF, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+				{"0-12/4,20-30/5 * * * * * ", &TimeSchedule{year, 0x42101111, 0xFFFFFFFFFFFFFFF, 0xFFFFFF, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+				// ','分割范围交叉覆盖
+				{"0-12/4,20-30/5,25-45/3 * * * * * ", &TimeSchedule{year, 0x924D2101111, 0xFFFFFFFFFFFFFFF, 0xFFFFFF, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+			},
+		},
+
+		// 非常规字符串
+		{
+			"容错恢复测试",
+			[]struct {
+				expr string
+				want *TimeSchedule
+			}{
+				// 取值溢出
+				{"0-62 0-60 0-24 0-32 0-63 0-63 ", &TimeSchedule{year, 0xFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFF, 0xFFFFFF, 0xFFFFFFFE, 0x1FFE, 0x7F, math.MaxUint64, time.Local}},
+				// 无效取值
+				{"60-63 60-63 24-63 32-63 13-63 7-63 ", &TimeSchedule{year, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, math.MaxUint64, time.Local}},
+				// 不合法参数
+				{"64 64 64 64 64 64 ", &TimeSchedule{year, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, math.MaxUint64, time.Local}},
 			},
 		},
 	}
@@ -38,56 +124,18 @@ func Test_Parse(t *testing.T) {
 					t.Error(err)
 				}
 
-				if ts.second != val.want.second || ts.min != val.want.min || ts.hour != val.want.hour ||
-					ts.day != val.want.day || ts.month != val.want.month || ts.year != val.want.year || ts.sYear != val.want.sYear {
-					t.Errorf("get: %+v, want: %+v", ts, val.want)
+				switch _ts := ts.(type) {
+				case *TimeSchedule:
+					if _ts.second != val.want.second || _ts.min != val.want.min || _ts.hour != val.want.hour ||
+						_ts.day != val.want.day || _ts.month != val.want.month || _ts.year != val.want.year || _ts.sYear != val.want.sYear {
+						t.Errorf("expr: %s, get: %+v, want: %+v", val.expr, _ts, val.want)
+					}
+				default:
+					t.Errorf("不知道的调度题类型")
 				}
+
 			}
 
-		})
-	}
-}
-func Test_bitSet(t *testing.T) {
-	type paramBitSet struct {
-		name          string
-		b, index, val uint64
-		want          uint64
-	}
-
-	data := []paramBitSet{
-		{"第 3 位值设为1", 0, 2, 1, 4},
-		{"第 3 位值设为0", 2, 2, 0, 2},
-		{"第 10 位值设为0", 0xFFFFFFFF, 9, 0, 0xFFFFFDFF},
-	}
-
-	for _, p := range data {
-		t.Run(p.name, func(t *testing.T) {
-			if get := bitSet(p.b, p.index, p.val); get != p.want {
-				t.Errorf("want: %x, get: %x", p.want, get)
-			}
-		})
-	}
-}
-
-func Test_Range(t *testing.T) {
-	type paramRange struct {
-		name string
-		expr string
-		want uint64
-	}
-
-	data := []paramRange{
-		{"测试星号", "*", math.MaxUint64},
-		{"测试频率", "*/4", 0x1111111111111111},
-		{"测试破折号", "0-31", 0xFFFFFFFF},
-		{"完整测试", "0-31/4", 0x11111111},
-	}
-
-	for _, p := range data {
-		t.Run(p.name, func(t *testing.T) {
-			if get, _ := parse(p.expr); get != p.want {
-				t.Errorf("want: %x, get: %x", p.want, get)
-			}
 		})
 	}
 }
@@ -124,6 +172,7 @@ func Test_TimeScheduleNext(t *testing.T) {
 	}
 
 	data := []paramTime2TS{
+		// 基础测试
 		{"测试当前月份", "0 20 5 * * *", time.Date(2019, 5, 20, 0, 0, 0, 0, time.Local), time.Date(2019, 5, 20, 5, 20, 0, 0, time.Local)},
 		{"测试跨年", "0 20 5 28,31 4 *", time.Date(2019, 5, 28, 7, 0, 0, 0, time.Local), time.Date(2020, 4, 28, 5, 20, 0, 0, time.Local)},
 		{"测试跨月", "0 20 5 28,31 * *", time.Date(2019, 2, 28, 7, 0, 0, 0, time.Local), time.Date(2019, 3, 28, 5, 20, 0, 0, time.Local)},
@@ -134,6 +183,8 @@ func Test_TimeScheduleNext(t *testing.T) {
 		{"测试星期天", "* * 3 * * 0", time.Date(2019, 11, 20, 1, 19, 23, 0, time.Local), time.Date(2019, 11, 24, 3, 0, 0, 0, time.Local)},
 		{"测试分", "*/5 10 * * *", time.Date(2019, 2, 28, 5, 10, 23, 0, time.Local), time.Date(2019, 2, 28, 5, 10, 25, 0, time.Local)},
 		{"测试无符合条件的时间", "* * * 32 3", time.Date(2019, 2, 28, 5, 10, 23, 0, time.Local), time.Time{}},
+
+		// 跨时区测试
 	}
 
 	for _, p := range data {
@@ -144,10 +195,6 @@ func Test_TimeScheduleNext(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_Any(t *testing.T) {
-	t.Logf("time.Now().Year(): %d\n", time.Now().Year())
 }
 
 func Benchmark_Range(b *testing.B) {

@@ -2,7 +2,6 @@ package corn
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -96,12 +95,6 @@ func (t *TimeSchedule) Max() time.Time {
 	}
 
 	return time.Date(t.sYear+int(year), time.Month(month), int(day), int(hour), int(min), int(sec), 0, time.Local)
-}
-
-// String 格式化输出
-func (t *TimeSchedule) String() string {
-	return fmt.Sprintf("{sYear: %d, second: %x, min: %x, hour: %x, day: %x, month: %x, weekDay: %x, year: %x}",
-		t.sYear, t.second, t.min, t.hour, t.day, t.month, t.weekDay, t.year)
 }
 
 // findBit 从低位向高位查找直到指为 1 的 bit 位(0-63)
@@ -436,11 +429,12 @@ func parse(expr string) (_time uint64, err error) {
 	}
 
 	if start > 63 {
-		start = 0
+		start = 64
 	}
 	if end > 63 {
 		end = 63
 	}
+
 	for i := start; i < end+1; i += frequency {
 		_time = bitSet(_time, i, 1)
 	}
