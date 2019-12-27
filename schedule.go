@@ -2,6 +2,7 @@ package corn
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -24,77 +25,32 @@ const (
 
 // Scheduler 调度器
 type Scheduler interface {
+	Laster
+	// 下一次执行的时间,如果返回零时则表示此次没有找到合适的执行时间
 	Next(t time.Time) time.Time
 }
 
 // TimeSchedule 时间调度
 type TimeSchedule struct {
-	// 起始年
-	sYear int
-
+	last
 	// 秒、分、小时、日期、月份、星期、年
-	second, min, hour, day, month, weekDay, year uint64
+	second, min, hour, day, month, weekDay uint64
 
 	loc *time.Location
 }
 
-// Max 调度器最后一次执行时间
-func (t *TimeSchedule) Max() time.Time {
-	year := uint64(63)
-	month := uint64(12)
-	day := uint64(31)
-	hour := uint64(23)
-	min := uint64(59)
-	sec := uint64(59)
+// Laster 最后执行时间
+type Laster interface {
+	// 如果返回时间是零时则表示时间调度器没有限制将一直执行
+	Last() time.Time
+}
 
-	for {
-		// 获取年
-		year = findBitBack(t.year, year, 0)
-		if year < 0 {
-			return time.Time{}
-		}
+// last Laster 空实现
+type last struct{}
 
-		// 获取月
-		month = findBitBack(t.month, month, 1)
-		if month < 1 {
-			return time.Time{}
-		}
-
-		// 获取日
-		day = findBitBack(t.day, day, 1)
-		if day < 1 {
-			return time.Time{}
-		}
-
-		_t := time.Date(t.sYear+int(year), time.Month(month), int(day), 0, 0, 0, 0, time.Local)
-		_year, _month, _day := _t.Date()
-		if _year != int(year) || _month != time.Month(month) || _day != int(day) || (1<<uint64(_t.Weekday()))&t.weekDay == 0 {
-			day--
-			continue
-		}
-
-		// 获取时
-		hour = findBitBack(t.hour, hour, 0)
-		if hour < 0 {
-			return time.Time{}
-		}
-
-		// 获取分
-		min = findBitBack(t.min, min, 0)
-		if min < 0 {
-			return time.Time{}
-		}
-
-		// 获取秒
-		sec = findBitBack(t.second, sec, 0)
-		if sec < 0 {
-			return time.Time{}
-		}
-
-		break
-	}
-
-	return time.Date(t.sYear+int(year), time.Month(month), int(day), int(hour), int(min), int(sec), 0, time.Local)
+// Last 调度器最后一次执行时间
+func (last) Last() time.Time {
+	return time.Time{}
 }
 
 // findBit 从低位向高位查找直到指为 1 的 bit 位(0-63)
@@ -121,6 +77,9 @@ func findBitBack(n, start, end uint64) uint64 {
 
 // Next 符合 TimeSchedule 的下个时间
 func (t *TimeSchedule) Next(_time time.Time) time.Time {
+	// 时间进1到秒
+	_time = _time.Add(1*time.Second - time.Duration(_time.Nanosecond())*time.Nanosecond)
+
 	// 原始时区
 	oriLoc := _time.Location()
 
@@ -131,17 +90,6 @@ func (t *TimeSchedule) Next(_time time.Time) time.Time {
 	hour, min, sec := _time.Clock()
 
 	look := func(_t time.Time) (ts time.Time, b bool) {
-		// 找到符合的年
-		_y := _t.Year() - t.sYear
-		if _y < 0 {
-			_y = 0
-		}
-		y := findBit(t.year, uint64(_y), 63)
-		if y > 63 {
-			return time.Time{}, false
-		}
-
-		year = t.sYear + int(y)
 
 		// 找到符合要求的月
 		m := findBit(t.month, uint64(month), 12)
@@ -271,9 +219,7 @@ func Time2TimeSchedule(_time time.Time) *TimeSchedule {
 	t.second = 1 << uint64(sec)
 	t.min = 1 << uint64(min)
 	t.hour = 1 << uint64(hour)
-	year, mon, day := _time.Date()
-	t.sYear = year
-	t.year = 1 << uint64(year-t.sYear)
+	_, mon, day := _time.Date()
 	t.day = 1 << uint64(day)
 	t.month = 1 << uint64(mon)
 	t.weekDay = 1 << uint64(_time.Weekday())
@@ -309,13 +255,11 @@ func Parse(spec string) (s Scheduler, err error) {
 	// 1.按空格分割字符串获取时间参数
 	params := strings.Fields(spec)
 
-	l := len(params)
-	for i := 0; i < 7-l; i++ {
-		params = append(params, "*")
+	if l := len(params); l != 6 {
+		return nil, fmt.Errorf("需要 6 个参数,只传入 %d 个参数", l)
 	}
 
 	ts := new(TimeSchedule)
-	ts.sYear = time.Now().Year()
 
 	f := func(str string) (_time uint64, err error) {
 		commas := strings.Split(str, ",")
@@ -362,10 +306,7 @@ func Parse(spec string) (s Scheduler, err error) {
 		return
 	}
 
-	ts.year, err = f(params[6])
-	if err != nil {
-		return
-	}
+	ts.loc = time.Local
 
 	// 3.修正不合法数据
 	ts.amend()
@@ -442,6 +383,24 @@ func parse(expr string) (_time uint64, err error) {
 	return
 }
 
+type convert func(start uint64, end uint64, frequency uint64) []uint64
+
+func convertDate(start uint64, end uint64, frequency uint64) []uint64 {
+	var _time uint64
+	for i := start; i < end; i += frequency {
+		_time = bitSet(_time, i, 1)
+	}
+	return []uint64{_time}
+}
+
+func convertYear(start uint64, end uint64, frequency uint64) []uint64 {
+	var years []uint64
+	for i := start; i < end; i += frequency {
+		years = append(years, i)
+	}
+	return years
+}
+
 // 设置 b 第 index 位的值为 val(从右向左计算)
 // index: 0 - 63
 // val: 0、1
@@ -454,3 +413,43 @@ func bitSet(b, index, val uint64) uint64 {
 	}
 	return b
 }
+
+// DurationSchedule 时间调度器(定长时间执行,比如每72小时执行一次)
+type DurationSchedule struct {
+	last
+
+	// 起始时间
+	start time.Time
+
+	// 间隔执行时间
+	frequency time.Duration
+}
+
+// Next 临近 t 的下一次执行时机
+func (d *DurationSchedule) Next(t time.Time) time.Time {
+	dur := t.Sub(d.start)
+	if quo := dur % d.frequency; quo != 0 {
+		return d.start.Add((dur/d.frequency + 1) * d.frequency)
+
+	}
+	return t
+}
+
+var _ Scheduler = new(DurationSchedule)
+
+// FixSchedule 时间调度器(固定时间执行,只执行一次)
+type FixSchedule struct {
+	rTime time.Time
+}
+
+// Next 临近 t 的下一次执行时机
+func (f *FixSchedule) Next(t time.Time) time.Time {
+	return f.rTime
+}
+
+// Last 最后一次执行时间
+func (f *FixSchedule) Last() time.Time {
+	return f.rTime
+}
+
+var _ Scheduler = new(FixSchedule)
