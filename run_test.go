@@ -30,9 +30,11 @@ func Test_Process(t *testing.T) {
 		return nil
 	}
 
-	_, min, _ := now.Clock()
-	corn := fmt.Sprintf("0 %d * * *", min+1)
+	_, _, sec := now.Clock()
+	corn := fmt.Sprintf("%d,%d,%d * * * * *", (sec+1)%60, (sec+5)%60, (sec+10)%60)
 	c.AddWithCorn(corn, taskWithCorn)
 
-	time.Sleep(60 * time.Second)
+	time.Sleep(20 * time.Second)
+	c.Stop()
+
 }
