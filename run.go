@@ -49,7 +49,6 @@ type Corn struct {
 	add  chan Jober    // 添加任务
 	del  chan string   // 删除任务
 	stop chan struct{} // 停止任务管理
-	rs   chan struct{} // 更新下次任务执行时间
 
 	group sync.WaitGroup // 停止任务时保证任务执行成功
 }
