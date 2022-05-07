@@ -2,6 +2,7 @@ package corn
 
 import (
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/snowflake"
 )
@@ -33,6 +34,18 @@ type Corn struct {
 
 	jobs map[string]Job
 	node *snowflake.Node
+}
+
+// AddWithTime 添加执行一次的任务
+// name: 任务标识(唯一),可通过此标识删除某不需要执行的任务
+func (c *Corn) AddWithTime(rTime time.Time, f Func) error {
+	return nil
+}
+
+// AddWithCorn 添加重复执行定时任务
+func (c *Corn) AddWithCorn(corn string, f Func) error {
+
+	return nil
 }
 
 func (c *Corn) Add(scheduler Scheduler, job Job) string {
