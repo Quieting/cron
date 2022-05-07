@@ -13,8 +13,3 @@ type JobFunc func() error
 func (f JobFunc) Run() error {
 	return f()
 }
-
-type entity struct {
-	Job
-	Scheduler
-}
